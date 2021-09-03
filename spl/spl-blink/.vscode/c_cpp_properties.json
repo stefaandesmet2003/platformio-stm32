@@ -1,0 +1,51 @@
+//
+// !!! WARNING !!! AUTO-GENERATED FILE!
+// PLEASE DO NOT MODIFY IT AND USE "platformio.ini":
+// https://docs.platformio.org/page/projectconf/section_env_build.html#build-flags
+//
+{
+    "configurations": [
+        {
+            "name": "PlatformIO",
+            "includePath": [
+                "/home/stefaan/Documents/PlatformIO/Projects/stm32/spl/spl-blink/include",
+                "/home/stefaan/Documents/PlatformIO/Projects/stm32/spl/spl-blink/src",
+                "/home/stefaan/.platformio/packages/framework-spl/stm32/cmsis/cores/stm32",
+                "/home/stefaan/.platformio/packages/framework-spl/stm32/cmsis/variants/stm32f1",
+                "/home/stefaan/.platformio/packages/framework-spl/stm32/spl/variants/stm32f1/inc",
+                "/home/stefaan/.platformio/packages/framework-spl/stm32/spl/variants/stm32f1/src",
+                "/home/stefaan/.platformio/packages/tool-unity",
+                ""
+            ],
+            "browse": {
+                "limitSymbolsToIncludedHeaders": true,
+                "path": [
+                    "/home/stefaan/Documents/PlatformIO/Projects/stm32/spl/spl-blink/include",
+                    "/home/stefaan/Documents/PlatformIO/Projects/stm32/spl/spl-blink/src",
+                    "/home/stefaan/.platformio/packages/framework-spl/stm32/cmsis/cores/stm32",
+                    "/home/stefaan/.platformio/packages/framework-spl/stm32/cmsis/variants/stm32f1",
+                    "/home/stefaan/.platformio/packages/framework-spl/stm32/spl/variants/stm32f1/inc",
+                    "/home/stefaan/.platformio/packages/framework-spl/stm32/spl/variants/stm32f1/src",
+                    "/home/stefaan/.platformio/packages/tool-unity",
+                    ""
+                ]
+            },
+            "defines": [
+                "PLATFORMIO=50101",
+                "STM32F1",
+                "STM32F103xB",
+                "STM32F10X_MD",
+                "F_CPU=72000000L",
+                "USE_STDPERIPH_DRIVER",
+                ""
+            ],
+            "compilerPath": "/home/stefaan/.platformio/packages/toolchain-gccarmnoneeabi@1.70201.0/bin/arm-none-eabi-gcc",
+            "compilerArgs": [
+                "-mthumb",
+                "-mcpu=cortex-m3",
+                ""
+            ]
+        }
+    ],
+    "version": 4
+}

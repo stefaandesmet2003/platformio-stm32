@@ -1,0 +1,46 @@
+//
+// !!! WARNING !!! AUTO-GENERATED FILE!
+// PLEASE DO NOT MODIFY IT AND USE "platformio.ini":
+// https://docs.platformio.org/page/projectconf/section_env_build.html#build-flags
+//
+{
+    "configurations": [
+        {
+            "name": "PlatformIO",
+            "includePath": [
+                "/home/stefaan/Documents/PlatformIO/Projects/stm32/ComponentTests/USB/opencm3/usbhidtest/include",
+                "/home/stefaan/Documents/PlatformIO/Projects/stm32/ComponentTests/USB/opencm3/usbhidtest/src",
+                "/home/stefaan/.platformio/packages/framework-libopencm3",
+                "/home/stefaan/.platformio/packages/framework-libopencm3/include",
+                "/home/stefaan/.platformio/packages/tool-unity",
+                ""
+            ],
+            "browse": {
+                "limitSymbolsToIncludedHeaders": true,
+                "path": [
+                    "/home/stefaan/Documents/PlatformIO/Projects/stm32/ComponentTests/USB/opencm3/usbhidtest/include",
+                    "/home/stefaan/Documents/PlatformIO/Projects/stm32/ComponentTests/USB/opencm3/usbhidtest/src",
+                    "/home/stefaan/.platformio/packages/framework-libopencm3",
+                    "/home/stefaan/.platformio/packages/framework-libopencm3/include",
+                    "/home/stefaan/.platformio/packages/tool-unity",
+                    ""
+                ]
+            },
+            "defines": [
+                "PLATFORMIO=50101",
+                "STM32F1",
+                "STM32F103xB",
+                "STM32F10X_MD",
+                "F_CPU=72000000L",
+                ""
+            ],
+            "compilerPath": "/home/stefaan/.platformio/packages/toolchain-gccarmnoneeabi@1.70201.0/bin/arm-none-eabi-gcc",
+            "compilerArgs": [
+                "-mthumb",
+                "-mcpu=cortex-m3",
+                ""
+            ]
+        }
+    ],
+    "version": 4
+}
