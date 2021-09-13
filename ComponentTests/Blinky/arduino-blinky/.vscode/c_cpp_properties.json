@@ -8,8 +8,8 @@
         {
             "name": "PlatformIO",
             "includePath": [
-                "/home/stefaan/Documents/PlatformIO/Projects/stm32/CompTest/Blinky/arduino-blinky/include",
-                "/home/stefaan/Documents/PlatformIO/Projects/stm32/CompTest/Blinky/arduino-blinky/src",
+                "/home/stefaan/Documents/PlatformIO/Projects/stm32/ComponentTests/Blinky/arduino-blinky/include",
+                "/home/stefaan/Documents/PlatformIO/Projects/stm32/ComponentTests/Blinky/arduino-blinky/src",
                 "/home/stefaan/.platformio/packages/framework-arduinoststm32/cores/arduino/avr",
                 "/home/stefaan/.platformio/packages/framework-arduinoststm32/cores/arduino/stm32",
                 "/home/stefaan/.platformio/packages/framework-arduinoststm32/cores/arduino/stm32/LL",
@@ -49,8 +49,8 @@
             "browse": {
                 "limitSymbolsToIncludedHeaders": true,
                 "path": [
-                    "/home/stefaan/Documents/PlatformIO/Projects/stm32/CompTest/Blinky/arduino-blinky/include",
-                    "/home/stefaan/Documents/PlatformIO/Projects/stm32/CompTest/Blinky/arduino-blinky/src",
+                    "/home/stefaan/Documents/PlatformIO/Projects/stm32/ComponentTests/Blinky/arduino-blinky/include",
+                    "/home/stefaan/Documents/PlatformIO/Projects/stm32/ComponentTests/Blinky/arduino-blinky/src",
                     "/home/stefaan/.platformio/packages/framework-arduinoststm32/cores/arduino/avr",
                     "/home/stefaan/.platformio/packages/framework-arduinoststm32/cores/arduino/stm32",
                     "/home/stefaan/.platformio/packages/framework-arduinoststm32/cores/arduino/stm32/LL",
@@ -92,7 +92,6 @@
                 "PLATFORMIO=50101",
                 "STM32F1",
                 "STM32F103xB",
-                "STM32F10X_MD",
                 "STM32F1xx",
                 "ARDUINO=10808",
                 "ARDUINO_ARCH_STM32",

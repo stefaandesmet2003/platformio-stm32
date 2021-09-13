@@ -2,6 +2,7 @@
 - test code with framework-spl  
 - modified framework-spl to include stm32f1 (code from ST, but file locations little different in platformio)
 - framework-spl : forced clock speed to 24MHz for swim_programmer test code
+(file framework-spl/stm32/cmsis/variants/stm32f1/system_stm32f10x.c)
 
 ## swim_programmer
 - original concept from https://github.com/dimitarm1/SWIM_Programmer 
