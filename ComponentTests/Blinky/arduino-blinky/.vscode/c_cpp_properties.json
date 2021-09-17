@@ -89,9 +89,10 @@
                 ]
             },
             "defines": [
-                "PLATFORMIO=50101",
+                "PLATFORMIO=50200",
                 "STM32F1",
                 "STM32F103xB",
+                "STM32F10X_MD",
                 "STM32F1xx",
                 "ARDUINO=10808",
                 "ARDUINO_ARCH_STM32",
