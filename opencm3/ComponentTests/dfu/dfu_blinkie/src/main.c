@@ -21,46 +21,60 @@
 
 #include <libopencm3/stm32/rcc.h>
 #include <libopencm3/stm32/gpio.h>
-#ifdef STM32L1
-	#define RCCLEDPORT (RCC_GPIOB)
-	#define LEDPORT (GPIOB)
-	#define LEDPIN (GPIO6)
-#elif STM32F3
-	#define RCCLEDPORT (RCC_GPIOE)
-	#define LEDPORT (GPIOE)
-	#define LEDPIN (GPIO8)
-#elif STM32F4
-	#define RCCLEDPORT (RCC_GPIOD)
-	#define LEDPORT (GPIOD)
-	#define LEDPIN (GPIO12)
-#endif
+#include <libopencm3/cm3/scb.h>
 
-//sds
-	#define RCCLEDPORT (RCC_GPIOC)
-	#define LEDPORT (GPIOC)
-	#define LEDPIN (GPIO13)
+// blinkie on PC13 (builtin led on bluepill)
+// trigger a reboot in dfu mode by setting PA10 to ground
 
 static void gpio_setup(void)
 {
-	/* Enable GPIO clock. */
-	/* Using API functions: */
-	rcc_periph_clock_enable(RCCLEDPORT);
-	/* Set pin to 'output push-pull'. */
-	/* Using API functions: */
-	//WTF?? did is example code ?? gpio_mode_setup(LEDPORT, GPIO_MODE_OUTPUT, GPIO_PUPD_NONE, LEDPIN);
-	gpio_set_mode(LEDPORT, GPIO_MODE_OUTPUT_10_MHZ, GPIO_CNF_OUTPUT_PUSHPULL, LEDPIN);
+	rcc_periph_clock_enable(RCC_GPIOC);
+	gpio_set_mode(GPIOC, GPIO_MODE_OUTPUT_10_MHZ, GPIO_CNF_OUTPUT_PUSHPULL, GPIO13);
+
+	rcc_periph_clock_enable(RCC_GPIOA);
+	gpio_set_mode(GPIOA, GPIO_MODE_INPUT, GPIO_CNF_INPUT_PULL_UPDOWN, GPIO10);
+	gpio_set(GPIOA,GPIO10);
+
 }
+
+
+// dit is hoe een app een reboot moet doen in DFU mode, zonder dat de BOOT1 pin moet gezet worden
+// de GPIO_CRL wordt gebruikt als een cookie
+// deze functie wordt in de bootloader niet gebruikt natuurlijk
+static void platform_request_boot(void)
+{
+  uint32_t crl = GPIOA_CRL;
+  /* Assert bootloader marker.
+   * Enable Pull on GPIOA1. We don't rely on the external pin
+   * really pulled, but only on the value of the CNF register
+   * changed from the reset value
+   */
+  crl &= 0xffffff0f;
+  crl |= 0x80;
+  GPIOA_CRL = crl;
+  SCB_VTOR = 0;
+  scb_reset_core();
+}
+
 
 int main(void)
 {
-	int i;
+	uint32_t i;
+
+  // clock setup
+	// met de volgende line commented werken we op de default HSI, is voldoende voor een blinkie
+  //rcc_clock_setup_in_hse_8mhz_out_72mhz();
+
 	gpio_setup();
 	/* Blink the LED on the board. */
 	while (1) {
 		/* Using API function gpio_toggle(): */
-		gpio_toggle(LEDPORT, LEDPIN);	/* LED on/off */
-		for (i = 0; i < 1000000; i++) {	/* Wait a bit. */
+		gpio_toggle(GPIOC, GPIO13);	/* LED on/off */
+		for (i = 0; i < 10000000; i++) {	/* Wait a bit. */
 			__asm__("nop");
+		}
+		if (!gpio_get(GPIOA,GPIO10)) {
+			platform_request_boot();
 		}
 	}
 
