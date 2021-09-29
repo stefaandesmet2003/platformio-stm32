@@ -30,6 +30,25 @@
 #define SWIM_0_CNT_FAST   8
 #define SWIM_1_CNT_FAST   2
 
+#define SWIM_MAX_DLY            0xFFFFF
+#define SWIM_MAX_RESEND_CNT     0
+
+#define SWIM_CMD_BITLEN         3
+#define SWIM_CMD_SRST           0x00
+#define SWIM_CMD_ROTF           0x01
+#define SWIM_CMD_WOTF           0x02
+
+#define SWIM_SYNC_CYCLES        128
+
+// nog wa brol uit versaloon
+#define SET_LE_U32(p, v)    \
+  do{\
+    *((uint8_t *)(p) + 0) = (((uint32_t)(v)) >> 0) & 0xFF;\
+    *((uint8_t *)(p) + 1) = (((uint32_t)(v)) >> 8) & 0xFF;\
+    *((uint8_t *)(p) + 2) = (((uint32_t)(v)) >> 16) & 0xFF;\
+    *((uint8_t *)(p) + 3) = (((uint32_t)(v)) >> 24) & 0xFF;\
+  } while (0)
+
 static uint8_t stm8_target_mhz = 8;
 static bool SWIM_highSpeed = false;
 // TODO : code onafhankelijk maken van deze target_mhz
@@ -46,26 +65,9 @@ static uint16_t SWIM_DMA_IN_Buffer[12];
 static uint16_t SWIM_DMA_OUT_Buffer[12];
 static uint16_t SWIM_clock_div = 0;
 
-#define SWIM_MAX_DLY					0xFFFFF
-#define SWIM_MAX_RESEND_CNT				0
-
-#define SWIM_CMD_BITLEN					3
-#define SWIM_CMD_SRST					0x00
-#define SWIM_CMD_ROTF					0x01
-#define SWIM_CMD_WOTF					0x02
-
-#define SWIM_SYNC_CYCLES				128
-
-// nog wa brol uit versaloon
-#define SET_U32_LSBFIRST(p, v)		\
-	do{\
-		*((uint8_t *)(p) + 0) = (((uint32_t)(v)) >> 0) & 0xFF;\
-		*((uint8_t *)(p) + 1) = (((uint32_t)(v)) >> 8) & 0xFF;\
-		*((uint8_t *)(p) + 2) = (((uint32_t)(v)) >> 16) & 0xFF;\
-		*((uint8_t *)(p) + 3) = (((uint32_t)(v)) >> 24) & 0xFF;\
-	} while (0)
-
-#define SET_LE_U32(p, v)			SET_U32_LSBFIRST(p, v)
+// for the async operation
+bool swim_async = false;
+static swimStatusAsync_t swimStatus;
 
 // not available in BMP, so we define it here
 // this code assumes systick is running, but that's the case in BMP
@@ -87,7 +89,6 @@ inline void delayMicroseconds(uint32_t us)
     oldTicks = currentTicks;
   } while (nbTicks > elapsedTicks);
 }
-
 
 static void SWIM_SET(void)
 {
@@ -146,6 +147,7 @@ static void SYNCSWPWM_IN_TIMER_INIT(void) {
   // geen idee waarom dit in versaloon stond, daar is geen func voor in opencm3
   TIM_SMCR(SYNCSWPWM_IN_TIMER) |= TIM_SMCR_MSM; 
 }
+
 static void SYNCSWPWM_IN_TIMER_FINI(void) 
 {
   timer_disable_counter(SYNCSWPWM_IN_TIMER);
@@ -162,12 +164,12 @@ static void SYNCSWPWM_IN_TIMER_RISE_DMA_INIT (uint16_t len, uint32_t address)
   DMA1_CCR(SYNCSWPWM_IN_TIMER_RISE_DMA) |= 1;
 }
 
-#define SYNCSWPWM_IN_TIMER_RISE_DMA_READY()		(DMA_ISR(DMA1) & DMA_ISR_TCIF1)
-#define SYNCSWPWM_IN_TIMER_RISE_DMA_RESET()		(DMA_IFCR(DMA1) = DMA_IFCR_CTCIF1)
-#define SYNCSWPWM_IN_TIMER_RISE_DMA_WAIT(dly)	do{\
-                          while(!SYNCSWPWM_IN_TIMER_RISE_DMA_READY() && --dly);\
-                          SYNCSWPWM_IN_TIMER_RISE_DMA_RESET();\
-                        }while(0)
+#define SYNCSWPWM_IN_TIMER_RISE_DMA_READY()    (DMA_ISR(DMA1) & DMA_ISR_TCIF1)
+#define SYNCSWPWM_IN_TIMER_RISE_DMA_RESET()    (DMA_IFCR(DMA1) = DMA_IFCR_CTCIF1)
+#define SYNCSWPWM_IN_TIMER_RISE_DMA_WAIT(dly)   do{\
+                                                  while(!SYNCSWPWM_IN_TIMER_RISE_DMA_READY() && --dly);\
+                                                  SYNCSWPWM_IN_TIMER_RISE_DMA_RESET();\
+                                                }while(0)
 
 
 static void SYNCSWPWM_OUT_TIMER_INIT(uint8_t dmaChannel, uint8_t polarity)
@@ -210,7 +212,6 @@ static void SYNCSWPWM_OUT_TIMER_INIT(uint8_t dmaChannel, uint8_t polarity)
   // original code deed ook dit, maar dat is enkel voor TIM1 ??
   // asserts doen niets omdat FULL_ASSERT niet defined is
   //TIM_CtrlPWMOutputs(SYNCSWPWM_OUT_TIMER, ENABLE);
-
 }
 
 static void SYNCSWPWM_OUT_TIMER_FINI(uint8_t dmaChannel)
@@ -227,9 +228,9 @@ static void SYNCSWPWM_OUT_TIMER_SetCycle (uint16_t cycle)
   TIM_EGR(SYNCSWPWM_OUT_TIMER) = TIM_EGR_UG;
 }
 
-#define SYNCSWPWM_OUT_TIMER_GetCycle()	TIM_ARR(SYNCSWPWM_OUT_TIMER)
-#define SYNCSWPWM_OUT_TIMER_GetRate()	TIM_CCR4(SYNCSWPWM_OUT_TIMER)
-#define SYNCSWPWM_OUT_TIMER_SetRate(r)	TIM_CCR4(SYNCSWPWM_OUT_TIMER) = (r)
+#define SYNCSWPWM_OUT_TIMER_GetCycle()  TIM_ARR(SYNCSWPWM_OUT_TIMER)
+#define SYNCSWPWM_OUT_TIMER_GetRate()   TIM_CCR4(SYNCSWPWM_OUT_TIMER)
+#define SYNCSWPWM_OUT_TIMER_SetRate(r)  TIM_CCR4(SYNCSWPWM_OUT_TIMER) = (r)
 
 static void SYNCSWPWM_OUT_TIMER_DMA_INIT (uint8_t dmaChannel, uint16_t len, uint32_t address)
 {
@@ -240,12 +241,12 @@ static void SYNCSWPWM_OUT_TIMER_DMA_INIT (uint8_t dmaChannel, uint16_t len, uint
   DMA1_CCR(dmaChannel) |= 1;
 }
 
-#define SYNCSWPWM_OUT_TIMER_DMA_UPDATE_READY()	(DMA1_ISR & DMA_ISR_TCIF2)
-#define SYNCSWPWM_OUT_TIMER_DMA_UPDATE_RESET()	(DMA1_IFCR = DMA_IFCR_CTCIF2)
-#define SYNCSWPWM_OUT_TIMER_DMA_UPDATE_WAIT()	do{\
-                          while(!SYNCSWPWM_OUT_TIMER_DMA_UPDATE_READY());\
-                          SYNCSWPWM_OUT_TIMER_DMA_UPDATE_RESET();\
-                        }while(0)
+#define SYNCSWPWM_OUT_TIMER_DMA_UPDATE_READY()  (DMA1_ISR & DMA_ISR_TCIF2)
+#define SYNCSWPWM_OUT_TIMER_DMA_UPDATE_RESET()  (DMA1_IFCR = DMA_IFCR_CTCIF2)
+#define SYNCSWPWM_OUT_TIMER_DMA_UPDATE_WAIT()   do{\
+                                                  while(!SYNCSWPWM_OUT_TIMER_DMA_UPDATE_READY());\
+                                                  SYNCSWPWM_OUT_TIMER_DMA_UPDATE_RESET();\
+                                                }while(0)
 
 /* gpio_primary_remap kunnen we hier niet gebruiken, want die overschrijft altijd de SWJ_CFG bits,
  * maar die worden bij BMP gezet in platform_init
@@ -272,50 +273,44 @@ static void SYNCSWPWM_PORT_FINI(void)
   afio_mapr |=  AFIO_MAPR_TIM2_REMAP_NO_REMAP; // is overbodig, zijn enkel nullen
   AFIO_MAPR = afio_mapr;
 }
-#define SYNCSWPWM_PORT_OD_INIT()		do{\
-                      SYNCSWPWM_PORT_INIT();\
-                      gpio_set(SYNCSW_OUT_PORT, SYNCSW_OUT_PIN);\
-                      gpio_set_mode(SYNCSW_OUT_PORT,GPIO_MODE_OUTPUT_50_MHZ,GPIO_CNF_OUTPUT_ALTFN_OPENDRAIN,SYNCSW_OUT_PIN);\
-                    }while(0)
+#define SYNCSWPWM_PORT_OD_INIT()    do{\
+                                      SYNCSWPWM_PORT_INIT();\
+                                      gpio_set(SYNCSW_OUT_PORT, SYNCSW_OUT_PIN);\
+                                      gpio_set_mode(SYNCSW_OUT_PORT,GPIO_MODE_OUTPUT_50_MHZ,GPIO_CNF_OUTPUT_ALTFN_OPENDRAIN,SYNCSW_OUT_PIN);\
+                                    }while(0)
 
-#define SYNCSWPWM_PORT_ODPP_FINI()		do{\
-                      gpio_set_mode(SYNCSW_OUT_PORT,GPIO_MODE_INPUT, GPIO_CNF_INPUT_FLOAT, SYNCSW_OUT_PIN); \
-											SYNCSWPWM_PORT_FINI();\
-										}while(0)
+#define SYNCSWPWM_PORT_ODPP_FINI()    do{\
+                                        gpio_set_mode(SYNCSW_OUT_PORT,GPIO_MODE_INPUT, GPIO_CNF_INPUT_FLOAT, SYNCSW_OUT_PIN); \
+                                        SYNCSWPWM_PORT_FINI();\
+                                      }while(0)
 
 static void SWIM_SetClockParam(uint8_t mHz, uint8_t cnt0, uint8_t cnt1)
 {
   uint16_t clock_div;
   
-  if (SWIM_clock_div)
-  {
+  if (SWIM_clock_div) {
     clock_div = SWIM_clock_div;
   }
-  else
-  {
+  else {
     clock_div = SYNCSWPWM_OUT_TIMER_MHZ / mHz;
-    if ((SYNCSWPWM_OUT_TIMER_MHZ % mHz) >= (mHz / 2))
-    {
+    if ((SYNCSWPWM_OUT_TIMER_MHZ % mHz) >= (mHz / 2)) {
       clock_div++;
     }
     clock_div *= SWIM_SYNC_CYCLES;
   }
 
   SWIM_PULSE_0 = cnt0 * clock_div / SWIM_SYNC_CYCLES;
-  if ((cnt0 * clock_div % SWIM_SYNC_CYCLES) >= SWIM_SYNC_CYCLES / 2)
-  {
+  if ((cnt0 * clock_div % SWIM_SYNC_CYCLES) >= SWIM_SYNC_CYCLES / 2) {
     SWIM_PULSE_0++;
   }
   SWIM_PULSE_1 = cnt1 * clock_div / SWIM_SYNC_CYCLES;
-  if ((cnt1 * clock_div % SWIM_SYNC_CYCLES) >= SWIM_SYNC_CYCLES / 2)
-  {
+  if ((cnt1 * clock_div % SWIM_SYNC_CYCLES) >= SWIM_SYNC_CYCLES / 2) {
     SWIM_PULSE_1++;
   }
   SWIM_PULSE_Threshold = SWIM_PULSE_0 + SWIM_PULSE_1;
 
   // 1.125 times
   SYNCSWPWM_OUT_TIMER_SetCycle(SWIM_PULSE_Threshold + (SWIM_PULSE_Threshold >> 3));
-
   SWIM_PULSE_Threshold >>= 1;
 }
 
@@ -332,25 +327,20 @@ retry:
   *ptr++ = SWIM_PULSE_0;
 
   p = 0;
-  for (i = bitlen - 1; i >= 0; i--)
-  {
-    if ((cmd >> i) & 1)
-    {
+  for (i = bitlen - 1; i >= 0; i--) {
+    if ((cmd >> i) & 1) {
       *ptr++ = SWIM_PULSE_1;
       p++;
     }
-    else
-    {
+    else {
       *ptr++ = SWIM_PULSE_0;
     }
   }
   // parity bit
-  if (p & 1)
-  {
+  if (p & 1) {
     *ptr++ = SWIM_PULSE_1;
   }
-  else
-  {
+  else {
     *ptr++ = SWIM_PULSE_0;
   }
   // wait for last waveform -- parity bit
@@ -363,26 +353,21 @@ retry:
   SYNCSWPWM_IN_TIMER_RISE_DMA_INIT(10, (uint32_t) (SWIM_DMA_IN_Buffer + 1)); // sds: anticipeer een read (0-8bits-parity)
   // sds :die +1 is niet duidelijk waarom, maar SWIM_HW_In checkt het start bit ook op SWIM_DMA_IN_Buffer[1], dus coherent
 
-  if (!dly)
-  {
+  if (!dly) {
     // timeout
     return 1;
   }
-  else if (SWIM_DMA_IN_Buffer[bitlen + 2] > SWIM_PULSE_Threshold)
-  {
+  else if (SWIM_DMA_IN_Buffer[bitlen + 2] > SWIM_PULSE_Threshold) {
     // nack
-    if (retry_cnt)
-    {
+    if (retry_cnt) {
       retry_cnt--;
       goto retry;
     }
-    else
-    {
+    else {
       return 1;
     }
   }
-  else
-  {
+  else {
     return 0;
   }
 }
@@ -396,12 +381,9 @@ static uint8_t SWIM_HW_In(uint8_t* data, uint8_t bitlen)
   dly = SWIM_MAX_DLY;
   SYNCSWPWM_IN_TIMER_RISE_DMA_WAIT(dly); // sds : de SYNCSWPWM_IN_TIMER_RISE_DMA_INIT is al eerder gebeurd!
   *data = 0;
-  if (dly && (SWIM_DMA_IN_Buffer[1] < SWIM_PULSE_Threshold)) // sds : eerste bit moet 0 zijn, slave start
-  {
-    for (dly = 0; dly < 8; dly++)
-    {
-      if (SWIM_DMA_IN_Buffer[2 + dly] < SWIM_PULSE_Threshold)
-      {
+  if (dly && (SWIM_DMA_IN_Buffer[1] < SWIM_PULSE_Threshold)) { // sds : eerste bit moet 0 zijn, slave start
+    for (dly = 0; dly < 8; dly++) {
+      if (SWIM_DMA_IN_Buffer[2 + dly] < SWIM_PULSE_Threshold) {
         *data |= 1 << (7 - dly);
       }
     }
@@ -415,8 +397,7 @@ static uint8_t SWIM_HW_In(uint8_t* data, uint8_t bitlen)
     SYNCSWPWM_OUT_TIMER_DMA_UPDATE_WAIT();
     return 0;
   }
-  else
-  {
+  else {
     return 1;
   }
 }
@@ -430,8 +411,7 @@ static int SWIM_sync(uint8_t mHz)
   SWIM_highSpeed = false; // after a sync pulse the target returns to low speed SWIM, so do we
   
   clock_div = SYNCSWPWM_OUT_TIMER_MHZ / mHz;
-  if ((SYNCSWPWM_OUT_TIMER_MHZ % mHz) > (mHz / 2))
-  {
+  if ((SYNCSWPWM_OUT_TIMER_MHZ % mHz) > (mHz / 2)) {
     clock_div++;
   }
   
@@ -449,12 +429,10 @@ static int SWIM_sync(uint8_t mHz)
   SYNCSWPWM_IN_TIMER_RISE_DMA_WAIT(dly);
   SYNCSWPWM_OUT_TIMER_SetCycle(arr_save);
 
-  if (!dly)
-  {
+  if (!dly) {
     return VSFERR_FAIL;
   }
-  else
-  {
+  else {
     SWIM_clock_div = SWIM_DMA_IN_Buffer[1];
     // TODO moeten we hier geen range check doen op SWIM_DMA_IN_Buffer[1] ?
     SWIM_SetClockParam(stm8_target_mhz, SWIM_0_CNT_SLOW, SWIM_1_CNT_SLOW);
@@ -465,11 +443,11 @@ static int SWIM_sync(uint8_t mHz)
 /*****************************************************************************/
 /* PUBLIC INTERFACE - STLINK STYLE                                           */
 /*****************************************************************************/
-
 // enkel basic settings op de timers
 // de sync gebeurt bij de entry sequence
-int swim_init(void) // F4-00
+int swim_init(bool async) // F4-00
 {
+  swim_async = async;
   SWIM_clock_div = 0;
   SYNCSWPWM_IN_TIMER_INIT();
 
@@ -517,15 +495,13 @@ int swim_doEntrySequence(void) // F4-04
   SWIM_CLR();
   delayMicroseconds(1000);
 
-  for (uint8_t i = 0; i < 4; i++)
-  {
+  for (uint8_t i = 0; i < 4; i++) {
     SWIM_SET();
     delayMicroseconds(500);
     SWIM_CLR();
     delayMicroseconds(500);
   }
-  for (uint8_t i = 0; i < 4; i++)
-  {
+  for (uint8_t i = 0; i < 4; i++) {
     SWIM_SET();
     delayMicroseconds(250);
     SWIM_CLR();
@@ -535,8 +511,7 @@ int swim_doEntrySequence(void) // F4-04
 
   dly = SWIM_MAX_DLY;
   SYNCSWPWM_IN_TIMER_RISE_DMA_WAIT(dly);
-  if (!dly)
-  {
+  if (!dly) {
     return VSFERR_FAIL;
   }
   return VSFERR_NONE;
@@ -579,66 +554,60 @@ int swim_deassertReset(void) // F4-08
   return VSFERR_NONE;
 }
 
-int swim_readStatus(uint8_t *status) // F4-09
+int swim_readStatus(swimStatusAsync_t *status) // F4-09
 {
-  (void) status;
-  // TODO, async behavior
+  *status = swimStatus; // copieert dit alle fields?
   return VSFERR_NONE;
 }
 
-// TODO make this async
+// in async mode, caller mustn't change *data until status == READY/ERROR
 int swim_wotf(uint32_t addr, uint16_t len, uint8_t *data) // F4 - 0A
 {
   uint16_t processed_len;
   uint8_t cur_len, i;
   uint32_t cur_addr, addr_tmp;
 
-  if ((0 == len) || ((uint8_t*)0 == data))
-  {
+  if (swim_async) {
+    if (len > SWIM_BUFFERSIZE)
+      len = SWIM_BUFFERSIZE;
+    swimStatus.state = STATE_SET_WRITE_ADDRESS; // an ongoing operation will be aborted; TODO CHECK is this according SWIM spec?
+    swimStatus.address = addr;
+    swimStatus.totalBytes = len;
+    swimStatus.curBytes = 0;
+    swimStatus.buffer = data;
+    return VSFERR_NONE;
+  }
+
+  // sync operation for BMP
+  if ((0 == len) || ((uint8_t*)0 == data)) {
     return VSFERR_FAIL;
   }
 
   processed_len = 0;
   cur_addr = addr;
-  while (processed_len < len)
-  {
-    if ((len - processed_len) > 255)
-    {
+  while (processed_len < len) {
+    if ((len - processed_len) > 255) {
       cur_len = 255;
     }
-    else
-    {
+    else {
       cur_len = len - processed_len;
     }
 
     SET_LE_U32(&addr_tmp, cur_addr);
 
     if(SWIM_HW_Out(SWIM_CMD_WOTF, SWIM_CMD_BITLEN, SWIM_MAX_RESEND_CNT))
-    {
       return VSFERR_FAIL;
-    }
     if (SWIM_HW_Out(cur_len, 8, 0))
-    {
       return VSFERR_FAIL;
-    }
     if (SWIM_HW_Out((addr_tmp >> 16) & 0xFF, 8, 0))
-    {
       return VSFERR_FAIL;
-    }
     if (SWIM_HW_Out((addr_tmp >> 8) & 0xFF, 8, 0))
-    {
       return VSFERR_FAIL;
-    }
     if (SWIM_HW_Out((addr_tmp >> 0) & 0xFF, 8, 0))
-    {
       return VSFERR_FAIL;
-    }
-    for (i = 0; i < cur_len; i++)
-    {
+    for (i = 0; i < cur_len; i++) {
       if (SWIM_HW_Out(data[processed_len + i], 8, SWIM_MAX_RESEND_CNT))
-      {
         return VSFERR_FAIL;
-      }
     }
 
     cur_addr += cur_len;
@@ -648,59 +617,51 @@ int swim_wotf(uint32_t addr, uint16_t len, uint8_t *data) // F4 - 0A
   return VSFERR_NONE;
 }  
 
-// TODO make this async
+// in async mode, *data is updating until state=READY/ERROR
 int swim_rotf(uint32_t addr, uint16_t len, uint8_t *data) // F4 - 0B
 {
   uint16_t processed_len;
   uint8_t cur_len, i;
   uint32_t cur_addr, addr_tmp;
 
-  if ((0 == len) || ((uint8_t*)0 == data))
-  {
-    return VSFERR_FAIL;
+  if (swim_async) {
+    swimStatus.state = STATE_SET_READ_ADDRESS; // an ongoing operation will be aborted; TODO CHECK is this according SWIM spec?
+    swimStatus.address = addr;
+    swimStatus.totalBytes = len;
+    swimStatus.curBytes = 0;
+    swimStatus.buffer = data;
+    return VSFERR_NONE;
   }
+
+  // sync operation for BMP
+  if ((0 == len) || ((uint8_t*)0 == data))
+    return VSFERR_FAIL;
 
   processed_len = 0;
   cur_addr = addr;
-  while (processed_len < len)
-  {
-    if ((len - processed_len) > 255)
-    {
+  while (processed_len < len) {
+    if ((len - processed_len) > 255) {
       cur_len = 255;
     }
-    else
-    {
+    else {
       cur_len = len - processed_len;
     }
 
     SET_LE_U32(&addr_tmp, cur_addr);
 
     if(SWIM_HW_Out(SWIM_CMD_ROTF, SWIM_CMD_BITLEN, SWIM_MAX_RESEND_CNT))
-    {
       return VSFERR_FAIL;
-    }
     if (SWIM_HW_Out(cur_len, 8, 0))
-    {
       return VSFERR_FAIL;
-    }
     if (SWIM_HW_Out((addr_tmp >> 16) & 0xFF, 8, 0))
-    {
       return VSFERR_FAIL;
-    }
     if (SWIM_HW_Out((addr_tmp >> 8) & 0xFF, 8, 0))
-    {
       return VSFERR_FAIL;
-    }
     if (SWIM_HW_Out((addr_tmp >> 0) & 0xFF, 8, 0))
-    {
       return VSFERR_FAIL;
-    }
-    for (i = 0; i < cur_len; i++)
-    {
+    for (i = 0; i < cur_len; i++) {
       if (SWIM_HW_In(&data[processed_len + i], 8))
-      {
         return VSFERR_FAIL;
-      }
     }
 
     cur_addr += cur_len;
@@ -710,17 +671,114 @@ int swim_rotf(uint32_t addr, uint16_t len, uint8_t *data) // F4 - 0B
   return VSFERR_NONE;
 } // swim_rotf
 
-int swim_readBuffer(uint8_t *data) // F4-0C
+// async operation
+void swim_update(void)
 {
-  (void) data;
-  // TODO, async behavior
-  return VSFERR_NONE;
-}
+  switch (swimStatus.state) {
+    case STATE_READY :
+      // nothing to do
+      break;
+    case STATE_SET_READ_ADDRESS : {
+      uint32_t addressLE;
+      uint8_t numBytesROTF;
 
-int swim_getBufferSize(uint16_t *bufferSize) // F4-0D
-{
-  *bufferSize = 4192; // STLINK heeft 6144 = 0x2400
-  return VSFERR_NONE;
-}
+      if (swimStatus.curBytes >= swimStatus.totalBytes) { // we're done
+        swimStatus.state = STATE_READY;
+        break;
+      }
+      if ((swimStatus.totalBytes - swimStatus.curBytes) > 255) {
+        numBytesROTF = 255; // max 255 bytes per ROTF transaction
+      }
+      else {
+        numBytesROTF = swimStatus.totalBytes - swimStatus.curBytes;
+      }
+      swimStatus.otfEndBytes = swimStatus.curBytes + numBytesROTF;
 
+      SET_LE_U32(&addressLE, swimStatus.address);
+      // we could split these over different updates() if necessary
+      if(SWIM_HW_Out(SWIM_CMD_ROTF, SWIM_CMD_BITLEN, SWIM_MAX_RESEND_CNT)) {
+        swimStatus.state = STATE_ERROR;
+        break;
+      }
+      if (SWIM_HW_Out(numBytesROTF, 8, 0)) {
+        swimStatus.state = STATE_ERROR;
+        break;
+      }
+      if (SWIM_HW_Out((addressLE >> 16) & 0xFF, 8, 0)) {
+        swimStatus.state = STATE_ERROR;
+        break;
+      }
+      if (SWIM_HW_Out((addressLE >> 8) & 0xFF, 8, 0)) {
+        swimStatus.state = STATE_ERROR;
+        break;
+      }
+      if (SWIM_HW_Out((addressLE >> 0) & 0xFF, 8, 0)) {
+        swimStatus.state = STATE_ERROR;
+        break;
+      }
+      swimStatus.state = STATE_READ_DATA; // move on
+      break;
+    }
+    case STATE_SET_WRITE_ADDRESS : {
+      uint32_t addressLE;
+      uint8_t numBytesWOTF;
 
+      if (swimStatus.curBytes >= swimStatus.totalBytes) { // we're done
+        swimStatus.state = STATE_READY;
+        break;
+      }
+      if ((swimStatus.totalBytes - swimStatus.curBytes) > 255) {
+        numBytesWOTF = 255; // max 255 bytes per ROTF transaction
+      }
+      else {
+        numBytesWOTF = swimStatus.totalBytes - swimStatus.curBytes;
+      }
+      swimStatus.otfEndBytes = swimStatus.curBytes + numBytesWOTF;
+
+      SET_LE_U32(&addressLE, swimStatus.address);
+      // we could split these over different updates() if necessary
+      if(SWIM_HW_Out(SWIM_CMD_WOTF, SWIM_CMD_BITLEN, SWIM_MAX_RESEND_CNT)) {
+        swimStatus.state = STATE_ERROR;
+        break;
+      }
+      if (SWIM_HW_Out(numBytesWOTF, 8, 0)) {
+        swimStatus.state = STATE_ERROR;
+        break;
+      }
+      if (SWIM_HW_Out((addressLE >> 16) & 0xFF, 8, 0)) {
+        swimStatus.state = STATE_ERROR;
+        break;
+      }
+      if (SWIM_HW_Out((addressLE >> 8) & 0xFF, 8, 0)) {
+        swimStatus.state = STATE_ERROR;
+        break;
+      }
+      if (SWIM_HW_Out((addressLE >> 0) & 0xFF, 8, 0)) {
+        swimStatus.state = STATE_ERROR;
+        break;
+      }
+      swimStatus.state = STATE_WRITE_DATA; // move on       
+    }
+      break;
+    case STATE_READ_DATA : // reading 1 byte per update()
+      if (SWIM_HW_In(&swimStatus.buffer[swimStatus.curBytes],8)) {
+        swimStatus.state = STATE_ERROR;
+        break;
+      }
+      swimStatus.curBytes++;
+      if (swimStatus.curBytes == swimStatus.otfEndBytes) { // start a new ROTF transaction
+        swimStatus.state = STATE_SET_READ_ADDRESS;
+      }
+      break;
+    case STATE_WRITE_DATA : // writing 1 byte per update()
+      if (SWIM_HW_Out(swimStatus.buffer[swimStatus.curBytes],8, SWIM_MAX_RESEND_CNT)) {
+        swimStatus.state = STATE_ERROR;
+        break;
+      }
+      swimStatus.curBytes++;
+      if (swimStatus.curBytes == swimStatus.otfEndBytes) { // start a new WOTF transaction
+        swimStatus.state = STATE_SET_WRITE_ADDRESS;
+      }
+      break;
+  }
+} // swim_update
