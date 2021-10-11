@@ -45,7 +45,7 @@
 // filesize is 2kB (4 * SECTOR_SIZE)
 #define FILEDATA_SECTOR_COUNT	4
 
-uint8_t BootSector[] = {
+const uint8_t BootSector[] = {
 	0xEB, 0x3C, 0x90,					// code to jump to the bootstrap code
 	'm', 'k', 'd', 'o', 's', 'f', 's', 0x00,		// OEM ID
 	WBVAL(BYTES_PER_SECTOR),				// bytes per sector
@@ -68,7 +68,7 @@ uint8_t BootSector[] = {
 	'F', 'A', 'T', '1', '2', ' ', ' ', ' '			// filesystem type
 };
 
-uint8_t FatSector[] = {
+const uint8_t FatSector[] = {
 	0xF8, 0xFF, 0xFF, 0x00, 0x40, 0x00, 0x05, 0x60, 0x00, 0x07, 0x80, 0x00,
 	0x09, 0xA0, 0x00, 0x0B, 0xC0, 0x00, 0x0D, 0xE0, 0x00, 0x0F, 0x00, 0x01,
 	0x11, 0x20, 0x01, 0x13, 0x40, 0x01, 0x15, 0x60, 0x01, 0x17, 0x80, 0x01,
@@ -93,7 +93,7 @@ uint8_t FatSector[] = {
 	0x00, 0x00, 0x00, 0x00
 };
 
-uint8_t DirSector[] = {
+const uint8_t DirSector[] = {
 	// long filename entry
 	0x41,									// sequence number
 	WBVAL('r'), WBVAL('a'), WBVAL('m'), WBVAL('d'), WBVAL('i'),		// five name characters in UTF-16
@@ -119,18 +119,35 @@ uint8_t DirSector[] = {
 	QBVAL(FILEDATA_SECTOR_COUNT * SECTOR_SIZE)				// file size in bytes
 };
 
+static uint8_t bootsectors[4*SECTOR_SIZE]; // laat os schrijven
 static uint8_t ramdata[FILEDATA_SECTOR_COUNT * SECTOR_SIZE];
 
 int ramdisk_init(void)
 {
 	uint32_t i = 0;
 
+	for (i=0;i<sizeof(BootSector);i++) {
+		bootsectors[i] = BootSector[i];
+	}
+	bootsectors[SECTOR_SIZE - 2] = 0x55;
+	bootsectors[SECTOR_SIZE - 1] = 0xAA;
+
+	for (i=0;i<sizeof(FatSector);i++) {
+		bootsectors[i+SECTOR_SIZE] = FatSector[i];
+		bootsectors[i+2*SECTOR_SIZE] = FatSector[i];
+	}
+	for (i=0;i<sizeof(DirSector);i++) {
+		bootsectors[i+3*SECTOR_SIZE] = DirSector[i];
+	}
+
 	// compute checksum in the directory entry
 	uint8_t chk = 0;
 	for (i = 32; i < 43; i++) {
 		chk = (((chk & 1) << 7) | ((chk & 0xFE) >> 1)) + DirSector[i];
 	}
-	DirSector[13] = chk;
+
+	//DirSector[13] = chk;
+	bootsectors[13+3*SECTOR_SIZE] = chk;
 
 	// fill ramdata
 	const uint8_t text[] = "USB Mass Storage Class example. ";
@@ -148,6 +165,14 @@ int ramdisk_read(uint32_t lba, uint8_t *copy_to)
 
 	memset(copy_to, 0, SECTOR_SIZE);
 	switch (lba) {
+		case 0:
+		case 1:
+		case 2:
+		case 3:
+			// read from bootsectors[]
+			memcpy(copy_to, &bootsectors[lba*SECTOR_SIZE],SECTOR_SIZE);
+			break;
+		/*
 		case 0: // sector 0 is the boot sector
 			memcpy(copy_to, BootSector, sizeof(BootSector));
 			copy_to[SECTOR_SIZE - 2] = 0x55;
@@ -160,6 +185,7 @@ int ramdisk_read(uint32_t lba, uint8_t *copy_to)
 		case 3: // sector 3 is the directory entry
 			memcpy(copy_to, DirSector, sizeof(DirSector));
 			break;
+		*/
 		default:
 			// ignore reads outside of the data section
 			if (lba >= FILEDATA_START_SECTOR && lba < FILEDATA_START_SECTOR + FILEDATA_SECTOR_COUNT) {
@@ -174,9 +200,18 @@ int ramdisk_write(uint32_t lba, const uint8_t *copy_from)
 {
 	printf("W LBA=%ld\n",lba);
 
-	(void)lba;
-	(void)copy_from;
-	// ignore writes
+	switch (lba) {
+		case 0:
+		case 1:
+		case 2:
+		case 3:
+			// write to bootsectors[]
+			memcpy(&bootsectors[lba*SECTOR_SIZE],copy_from, SECTOR_SIZE);
+			break;
+		default:
+			printf("not updating file data for now \n");
+			break;
+	}
 	return 0;
 }
 
