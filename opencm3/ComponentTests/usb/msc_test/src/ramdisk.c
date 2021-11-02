@@ -28,10 +28,10 @@
 		 (((x) >> 16) & 0xFF), (((x) >> 24) & 0xFF)
 
 // filesystem size is 512kB (1024 * SECTOR_SIZE)
-#define SECTOR_COUNT		1024
+#define SECTOR_COUNT		1024 // SDS : aanpassen? of enkel de filesizes zetten?
 #define SECTOR_SIZE		512
 #define BYTES_PER_SECTOR	512
-#define SECTORS_PER_CLUSTER	4
+#define SECTORS_PER_CLUSTER	1 // SDS : was 4
 #define RESERVED_SECTORS	1
 #define FAT_COPIES		2
 #define ROOT_ENTRIES		512
