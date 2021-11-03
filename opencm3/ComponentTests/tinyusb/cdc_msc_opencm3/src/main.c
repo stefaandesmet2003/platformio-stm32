@@ -101,13 +101,10 @@ void usb_lp_can_rx0_isr(void) {
   tud_int_handler(0);
 }
 
-// bestaat dit in opencm3??
-/*
-void USBWakeUp_IRQHandler(void)
+void usb_wakeup_isr(void)
 {
   tud_int_handler(0);
 }
-*/
 
 void led_blinking_task(void);
 void cdc_task(void);
