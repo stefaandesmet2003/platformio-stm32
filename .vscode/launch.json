@@ -1,0 +1,67 @@
+{
+  // Use IntelliSense to learn about possible attributes.
+  // Hover to view descriptions of existing attributes.
+  // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+  // "preAttachCommands": ["load"],
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "STM32F103 cortex Debug",
+      "type": "cortex-debug",
+      "cwd" : "${workspaceRoot}",
+      "executable": "/home/stefaan/Documents/PlatformIO/Projects/stm32/ComponentTests/freertos/freertos_opencm3_test/.pio/build/bluepill_f103c8/firmware.elf",
+      "request": "attach",
+      "servertype": "openocd",
+      "serverpath": "/home/stefaan/.platformio/packages/tool-openocd/bin/openocd",
+      "armToolchainPath": "/home/stefaan/.platformio/packages/toolchain-gccarmnoneeabi@1.70201.0/bin",
+      "device": "STM32F103C8",
+      "svdFile": "/home/stefaan/.platformio/platforms/ststm32/misc/svd/STM32F103xx.svd",
+      "showDevDebugOutput": false,
+      "v1": false,
+      "runToMain" : true,
+      "configFiles": [
+          "interface/stlink.cfg",
+          "target/stm32f1x.cfg"
+      ]
+    },
+    {
+      "name": "STM32F103 cortex Debug FreeRTOS",
+      "type": "cortex-debug",
+      "cwd" : "${workspaceRoot}",
+      "executable": "/home/stefaan/Documents/PlatformIO/Projects/stm32/ComponentTests/freertos/freertos_opencm3_test/.pio/build/bluepill_f103c8/firmware.elf",
+      "request": "attach",
+      "servertype": "openocd",
+      "serverpath": "/home/stefaan/.platformio/packages/tool-openocd/bin/openocd",
+      "armToolchainPath": "/home/stefaan/.platformio/packages/toolchain-gccarmnoneeabi@1.70201.0/bin",
+      "device": "STM32F103C8",
+      "svdFile": "/home/stefaan/.platformio/platforms/ststm32/misc/svd/STM32F103xx.svd",
+      "showDevDebugOutput": false,
+      "v1": false,
+      "runToMain" : true,
+      "rtos" : "FreeRTOS",
+      "configFiles": [
+          "interface/stlink.cfg",
+          "target/stm32f1x.cfg"
+      ]
+    },
+    {
+      "name": "usb suspend test cortex-debug",
+      "type": "cortex-debug",
+      "cwd" : "${workspaceRoot}",
+      "executable": "/home/stefaan/Documents/PlatformIO/Projects/stm32/opencm3/ComponentTests/usb/suspendresume_test/.pio/build/bluepill_f103c8/firmware.elf",
+      "request": "attach",
+      "servertype": "openocd",
+      "serverpath": "/home/stefaan/.platformio/packages/tool-openocd/bin/openocd",
+      "armToolchainPath": "/home/stefaan/.platformio/packages/toolchain-gccarmnoneeabi@1.70201.0/bin",
+      "device": "STM32F103C8",
+      "svdFile": "/home/stefaan/.platformio/platforms/ststm32/misc/svd/STM32F103xx.svd",
+      "showDevDebugOutput": false,
+      "v1": false,
+      "runToMain" : false,
+      "configFiles": [
+          "interface/stlink.cfg",
+          "target/stm32f1x.cfg"
+      ]
+    }    
+  ]
+}
